@@ -30,7 +30,7 @@ import neuron.models as nrn_models
 import neuron.utils as nrn_utils
 
 # other vm functions
-import losses
+from . import losses
 
 
 def unet_core(vol_size, enc_nf, dec_nf, full_size=True, src=None, tgt=None, src_feats=1, tgt_feats=1):
