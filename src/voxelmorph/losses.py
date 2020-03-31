@@ -341,7 +341,7 @@ def mutualInformation(bin_centers,
 
     Author: Courtney Guo
     """
-    print("vxm:mutual information loss is experimental.", file=sts.stderr)
+    print("vxm:mutual information loss is experimental.", file=sys.stderr)
     
     if local_mi:
         return localMutualInformation(bin_centers, sigma_ratio, max_clip, patch_size)
@@ -362,7 +362,7 @@ def globalMutualInformation(bin_centers,
 
     Author: Courtney Guo
     """
-    print("vxm:mutual information loss is experimental.", file=sts.stderr)
+    print("vxm:mutual information loss is experimental.", file=sys.stderr)
 
     """ prepare MI. """
     vol_bin_centers = K.variable(bin_centers)
@@ -440,7 +440,7 @@ def localMutualInformation(bin_centers,
 
     Author: Courtney Guo        
     """
-    print("vxm:mutual information loss is experimental.", file=sts.stderr)
+    print("vxm:mutual information loss is experimental.", file=sys.stderr)
 
     """ prepare MI. """
     vol_bin_centers = K.variable(bin_centers)
