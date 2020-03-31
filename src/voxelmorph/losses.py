@@ -5,7 +5,7 @@ losses for VoxelMorph
 # main imports
 import sys
 
-# Third party inports
+# Third party imports
 import tensorflow as tf
 import keras.backend as K
 import numpy as np
