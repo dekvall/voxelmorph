@@ -335,6 +335,7 @@ def mutualInformation(bin_centers,
                       max_clip=1,
                       crop_background=False, # crop_background should never be true if local_mi is True
                       local_mi=False,
+                      vol_size=None,
                       patch_size=1):
     """
     mutual information for image-image pairs.
@@ -344,7 +345,8 @@ def mutualInformation(bin_centers,
     print("vxm:mutual information loss is experimental.", file=sys.stderr)
     
     if local_mi:
-        return localMutualInformation(bin_centers, sigma_ratio, max_clip, patch_size)
+        assert vol_size is not None, "You need to specify vol size for local MI"
+        return localMutualInformation(bin_centers, vol_size, sigma_ratio, max_clip, patch_size)
 
     else:
         return globalMutualInformation(bin_centers, sigma_ratio, max_clip, crop_background)
@@ -458,42 +460,79 @@ def localMutualInformation(bin_centers,
         vbc = K.reshape(vol_bin_centers, o)
         
         # compute padding sizes
-        x, y, z = vol_size
-        x_r = -x % patch_size
-        y_r = -y % patch_size
-        z_r = -z % patch_size
-        pad_dims = [[0,0]]
-        pad_dims.append([x_r//2, x_r - x_r//2])
-        pad_dims.append([y_r//2, y_r - y_r//2])
-        pad_dims.append([z_r//2, z_r - z_r//2])
-        pad_dims.append([0,0])
-        padding = tf.constant(pad_dims)
+        print(vol_size)
+        if len(vol_size) > 2:
+            x, y, z = vol_size
+            x_r = -x % patch_size
+            y_r = -y % patch_size
+            z_r = -z % patch_size
+            pad_dims = [[0,0]]
+            pad_dims.append([x_r//2, x_r - x_r//2])
+            pad_dims.append([y_r//2, y_r - y_r//2])
+            pad_dims.append([z_r//2, z_r - z_r//2])
+            pad_dims.append([0,0])
+            padding = tf.constant(pad_dims)
 
-        # compute image terms
-        # num channels of y_true and y_pred must be 1
-        I_a = K.exp(- preterm * K.square(tf.pad(y_true, padding, 'CONSTANT')  - vbc))
-        I_a /= K.sum(I_a, -1, keepdims=True)
+            # compute image terms
+            # num channels of y_true and y_pred must be 1
+            I_a = K.exp(- preterm * K.square(tf.pad(y_true, padding, 'CONSTANT')  - vbc))
+            I_a /= K.sum(I_a, -1, keepdims=True)
 
-        I_b = K.exp(- preterm * K.square(tf.pad(y_pred, padding, 'CONSTANT')  - vbc))
-        I_b /= K.sum(I_b, -1, keepdims=True)
+            I_b = K.exp(- preterm * K.square(tf.pad(y_pred, padding, 'CONSTANT')  - vbc))
+            I_b /= K.sum(I_b, -1, keepdims=True)
 
-        I_a_patch = tf.reshape(I_a, [(x+x_r)//patch_size, patch_size, (y+y_r)//patch_size, patch_size, (z+z_r)//patch_size, patch_size, num_bins])
-        I_a_patch = tf.transpose(I_a_patch, [0, 2, 4, 1, 3, 5, 6])
-        I_a_patch = tf.reshape(I_a_patch, [-1, patch_size**3, num_bins])
+            I_a_patch = tf.reshape(I_a, [(x+x_r)//patch_size, patch_size, (y+y_r)//patch_size, patch_size, (z+z_r)//patch_size, patch_size, num_bins])
+            I_a_patch = tf.transpose(I_a_patch, [0, 2, 4, 1, 3, 5, 6])
+            I_a_patch = tf.reshape(I_a_patch, [-1, patch_size**3, num_bins])
 
-        I_b_patch = tf.reshape(I_b, [(x+x_r)//patch_size, patch_size, (y+y_r)//patch_size, patch_size, (z+z_r)//patch_size, patch_size, num_bins])
-        I_b_patch = tf.transpose(I_b_patch, [0, 2, 4, 1, 3, 5, 6])
-        I_b_patch = tf.reshape(I_b_patch, [-1, patch_size**3, num_bins])
+            I_b_patch = tf.reshape(I_b, [(x+x_r)//patch_size, patch_size, (y+y_r)//patch_size, patch_size, (z+z_r)//patch_size, patch_size, num_bins])
+            I_b_patch = tf.transpose(I_b_patch, [0, 2, 4, 1, 3, 5, 6])
+            I_b_patch = tf.reshape(I_b_patch, [-1, patch_size**3, num_bins])
 
-        # compute probabilities
-        I_a_permute = K.permute_dimensions(I_a_patch, (0,2,1))
-        pab = K.batch_dot(I_a_permute, I_b_patch)  # should be the right size now, nb_labels x nb_bins
-        pab /= patch_size**3
-        pa = tf.reduce_mean(I_a_patch, 1, keep_dims=True)
-        pb = tf.reduce_mean(I_b_patch, 1, keep_dims=True)
-        
-        papb = K.batch_dot(K.permute_dimensions(pa, (0,2,1)), pb) + K.epsilon()
-        mi = K.mean(K.sum(K.sum(pab * K.log(pab/papb + K.epsilon()), 1), 1))
+            # compute probabilities
+            I_a_permute = K.permute_dimensions(I_a_patch, (0,2,1))
+            pab = K.batch_dot(I_a_permute, I_b_patch)  # should be the right size now, nb_labels x nb_bins
+            pab /= patch_size**3
+            pa = tf.reduce_mean(I_a_patch, 1, keep_dims=True)
+            pb = tf.reduce_mean(I_b_patch, 1, keep_dims=True)
+            
+            papb = K.batch_dot(K.permute_dimensions(pa, (0,2,1)), pb) + K.epsilon()
+            mi = K.mean(K.sum(K.sum(pab * K.log(pab/papb + K.epsilon()), 1), 1))
+        else:
+            x, y = vol_size
+            x_r = -x % patch_size
+            y_r = -y % patch_size
+            pad_dims = [[0,0]]
+            pad_dims.append([x_r//2, x_r - x_r//2])
+            pad_dims.append([y_r//2, y_r - y_r//2])
+            pad_dims.append([0,0])
+            padding = tf.constant(pad_dims)
+
+            # compute image terms
+            # num channels of y_true and y_pred must be 1
+            I_a = K.exp(- preterm * K.square(tf.pad(y_true, padding, 'CONSTANT')  - vbc))
+            I_a /= K.sum(I_a, -1, keepdims=True)
+
+            I_b = K.exp(- preterm * K.square(tf.pad(y_pred, padding, 'CONSTANT')  - vbc))
+            I_b /= K.sum(I_b, -1, keepdims=True)
+
+            I_a_patch = tf.reshape(I_a, [(x+x_r)//patch_size, patch_size, (y+y_r)//patch_size, patch_size, num_bins])
+            I_a_patch = tf.transpose(I_a_patch, [0, 2, 1, 3, 4])
+            I_a_patch = tf.reshape(I_a_patch, [-1, patch_size**3, num_bins])
+
+            I_b_patch = tf.reshape(I_b, [(x+x_r)//patch_size, patch_size, (y+y_r)//patch_size, patch_size, num_bins])
+            I_b_patch = tf.transpose(I_b_patch, [0, 2, 1, 3, 4])
+            I_b_patch = tf.reshape(I_b_patch, [-1, patch_size**3, num_bins])
+
+            # compute probabilities
+            I_a_permute = K.permute_dimensions(I_a_patch, (0,2,1))
+            pab = K.batch_dot(I_a_permute, I_b_patch)  # should be the right size now, nb_labels x nb_bins
+            pab /= patch_size**3
+            pa = tf.reduce_mean(I_a_patch, 1, keep_dims=True)
+            pb = tf.reduce_mean(I_b_patch, 1, keep_dims=True)
+            
+            papb = K.batch_dot(K.permute_dimensions(pa, (0,2,1)), pb) + K.epsilon()
+            mi = K.mean(K.sum(K.sum(pab * K.log(pab/papb + K.epsilon()), 1), 1))
 
         return mi
 
